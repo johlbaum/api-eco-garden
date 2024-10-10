@@ -14,6 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class AdviceController extends AbstractController
 {
@@ -68,14 +69,18 @@ class AdviceController extends AbstractController
      * Permet d’ajouter un conseil. 
      */
     #[Route('api/conseil', name: 'app_createAdvice', methods: ['POST'])]
-    public function createAdvice(Request $request, SerializerInterface $serializer, EntityManagerInterface $entityManager, MonthRepository $monthRepository): JsonResponse
-    {
+    public function createAdvice(
+        Request $request,
+        SerializerInterface $serializer,
+        EntityManagerInterface $entityManager,
+        MonthRepository $monthRepository,
+        ValidatorInterface $validator
+    ): JsonResponse {
         $jsonAdvice = $request->getContent();
 
         $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json');
 
         $content = $request->toArray();
-
         $months = $content['month'] ?? [];
 
         foreach ($months as $monthNumber) {
@@ -86,6 +91,12 @@ class AdviceController extends AbstractController
             } else {
                 throw new NotFoundHttpException("Invalid month: $monthNumber.");
             }
+        }
+
+        // On vérifie les erreurs
+        $errors = $validator->validate($advice);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
 
         $entityManager->persist($advice);
@@ -100,32 +111,48 @@ class AdviceController extends AbstractController
      * Permet de mettre à jour un conseil. 
      */
     #[Route('/api/conseil/{id}', name: 'app_updateAdvice', methods: ['PUT'])]
-    public function updateAdvice($id, AdviceRepository $adviceRepository, Request $request, SerializerInterface $serializer, EntityManagerInterface $entityManager, MonthRepository $monthRepository): JsonResponse
-    {
+    public function updateAdvice(
+        $id,
+        Request $request,
+        SerializerInterface $serializer,
+        AdviceRepository $adviceRepository,
+        EntityManagerInterface $entityManager,
+        MonthRepository $monthRepository,
+        ValidatorInterface $validator
+    ): JsonResponse {
+        // On récupère l'entité existante par son ID.
         $currentAdvice = $adviceRepository->find($id);
-
         if (!$currentAdvice) {
             throw new NotFoundHttpException("Advice with ID $id not found.");
         }
 
-        $jsonAdvice = $request->getContent();
+        // Désérialisation des nouvelles données dans l'entité existante.
+        $updatedAdvice = $serializer->deserialize($request->getContent(), Advice::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAdvice]);
 
-        $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAdvice]);
+        // Validation des données mises à jour.
+        // $errors = $validator->validate($updatedAdvice);
+        // if ($errors->count() > 0) {
+        //     return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
+        // }
 
+        // Mise à jour des mois s'ils sont présents dans la requête.
         $content = $request->toArray();
         $months = $content['month'] ?? [];
 
-        foreach ($months as $monthNumber) {
-            $month = $monthRepository->find($monthNumber);
-
-            if ($month) {
-                $advice->addMonth($month);
-            } else {
-                throw new NotFoundHttpException("Invalid month: $monthNumber.");
+        if (!empty($months)) {
+            $currentAdvice->clearMonths();  // Réinitialisation des mois actuels.
+            foreach ($months as $monthNumber) {
+                $month = $monthRepository->find($monthNumber);
+                if ($month) {
+                    $currentAdvice->addMonth($month);
+                } else {
+                    throw new NotFoundHttpException("Invalid month: $monthNumber.");
+                }
             }
         }
 
-        $entityManager->persist($advice);
+        // Sauvegarde des changements.
+        $entityManager->persist($updatedAdvice);
         $entityManager->flush();
 
         return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);

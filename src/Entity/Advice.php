@@ -8,6 +8,7 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: AdviceRepository::class)]
 class Advice
@@ -20,6 +21,7 @@ class Advice
 
     #[ORM\Column(type: Types::TEXT)]
     #[Groups(["getAdvice"])]
+    #[Assert\NotBlank(message: "La description du conseil est obligatoire.")]
     private ?string $description = null;
 
     /**
@@ -27,6 +29,7 @@ class Advice
      */
     #[ORM\ManyToMany(targetEntity: Month::class, mappedBy: 'adviceList')]
     #[Groups(["getAdvice"])]
+    #[Assert\Count(min: 1, minMessage: "Au moins un mois doit être associé au conseil.")]
     private Collection $months;
 
     public function __construct()
@@ -73,6 +76,15 @@ class Advice
     {
         if ($this->months->removeElement($month)) {
             $month->removeAdvice($this);
+        }
+
+        return $this;
+    }
+
+    public function clearMonths(): static
+    {
+        foreach ($this->months as $month) {
+            $this->removeMonth($month);
         }
 
         return $this;
