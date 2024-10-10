@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class AdviceController extends AbstractController
 {
@@ -23,6 +24,10 @@ class AdviceController extends AbstractController
     public function getAdviceByMonce($mois, MonthRepository $monthRepository, SerializerInterface $serializer): JsonResponse
     {
         $month = $monthRepository->find($mois);
+
+        if (!$month) {
+            throw new NotFoundHttpException("Month with ID $mois not found.");
+        }
 
         $advices = $month->getAdviceList();
 
@@ -43,6 +48,10 @@ class AdviceController extends AbstractController
     {
         $currentMonth = (new \DateTime())->format('n');
         $month = $monthRepository->find($currentMonth);
+
+        if (!$month) {
+            throw new NotFoundHttpException("Current month ($currentMonth) not found.");
+        }
 
         $advices = $month->getAdviceList();
 
@@ -75,7 +84,7 @@ class AdviceController extends AbstractController
             if ($month) {
                 $advice->addMonth($month);
             } else {
-                return new JsonResponse(['error' => 'Invalid month: ' . $monthNumber], Response::HTTP_NOT_FOUND);
+                throw new NotFoundHttpException("Invalid month: $monthNumber.");
             }
         }
 
@@ -94,6 +103,11 @@ class AdviceController extends AbstractController
     public function updateAdvice($id, AdviceRepository $adviceRepository, Request $request, SerializerInterface $serializer, EntityManagerInterface $entityManager, MonthRepository $monthRepository): JsonResponse
     {
         $currentAdvice = $adviceRepository->find($id);
+
+        if (!$currentAdvice) {
+            throw new NotFoundHttpException("Advice with ID $id not found.");
+        }
+
         $jsonAdvice = $request->getContent();
 
         $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAdvice]);
@@ -107,7 +121,7 @@ class AdviceController extends AbstractController
             if ($month) {
                 $advice->addMonth($month);
             } else {
-                return new JsonResponse(['error' => 'Invalid month: ' . $monthNumber], Response::HTTP_NOT_FOUND);
+                throw new NotFoundHttpException("Invalid month: $monthNumber.");
             }
         }
 
@@ -124,6 +138,10 @@ class AdviceController extends AbstractController
     public function deleteAdvice($id, EntityManagerInterface $entityManager, AdviceRepository $adviceRepository): JsonResponse
     {
         $currentAdvice = $adviceRepository->find($id);
+
+        if (!$currentAdvice) {
+            throw new NotFoundHttpException("Advice with ID $id not found.");
+        }
 
         $entityManager->remove($currentAdvice);
         $entityManager->flush();
