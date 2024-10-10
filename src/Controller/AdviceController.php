@@ -2,9 +2,13 @@
 
 namespace App\Controller;
 
+use App\Entity\Advice;
+use App\Repository\AdviceRepository;
 use App\Repository\MonthRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -48,5 +52,37 @@ class AdviceController extends AbstractController
         $jsonAdvices = $serializer->serialize($advices, 'json', ['groups' => 'getAdvice']);
 
         return new JsonResponse($jsonAdvices, Response::HTTP_OK, [], true);
+    }
+
+    /**
+     * Permet d’ajouter un conseil. 
+     */
+    #[Route('api/conseil', name: 'app_createAdvice', methods: ['POST'])]
+    public function createAdvice(Request $request, SerializerInterface $serializer, EntityManagerInterface $entityManager, MonthRepository $monthRepository): JsonResponse
+    {
+        $jsonAdvice = $request->getContent();
+
+        $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json');
+
+        $content = $request->toArray();
+
+        $months = $content['month'] ?? [];
+
+        foreach ($months as $monthNumber) {
+            $month = $monthRepository->find($monthNumber);
+
+            if ($month) {
+                $advice->addMonth($month);
+            } else {
+                return new JsonResponse(['error' => 'Invalid month: ' . $monthNumber], Response::HTTP_NOT_FOUND);
+            }
+        }
+
+        $entityManager->persist($advice);
+        $entityManager->flush();
+
+        $advice = $serializer->serialize($advice, 'json', ['groups' => 'getAdvice']);
+
+        return new JsonResponse($advice, Response::HTTP_CREATED, [], true);
     }
 }
