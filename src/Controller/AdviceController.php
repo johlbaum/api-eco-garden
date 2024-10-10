@@ -129,12 +129,6 @@ class AdviceController extends AbstractController
         // Désérialisation des nouvelles données dans l'entité existante.
         $updatedAdvice = $serializer->deserialize($request->getContent(), Advice::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAdvice]);
 
-        // Validation des données mises à jour.
-        // $errors = $validator->validate($updatedAdvice);
-        // if ($errors->count() > 0) {
-        //     return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
-        // }
-
         // Mise à jour des mois s'ils sont présents dans la requête.
         $content = $request->toArray();
         $months = $content['month'] ?? [];
