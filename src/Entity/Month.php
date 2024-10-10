@@ -6,6 +6,7 @@ use App\Repository\MonthRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: MonthRepository::class)]
 class Month
@@ -13,9 +14,11 @@ class Month
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(["getAdvice"])]
     private ?int $id = null;
 
     #[ORM\Column]
+    #[Groups(["getAdvice"])]
     private ?int $monthNumber = null;
 
     /**
