@@ -116,4 +116,18 @@ class AdviceController extends AbstractController
 
         return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
     }
+
+    /**
+     * Permet de supprimer un conseil. 
+     */
+    #[Route('/api/conseil/{id}', name: 'app_deleteAdvice', methods: ['DELETE'])]
+    public function deleteAdvice($id, EntityManagerInterface $entityManager, AdviceRepository $adviceRepository): JsonResponse
+    {
+        $currentAdvice = $adviceRepository->find($id);
+
+        $entityManager->remove($currentAdvice);
+        $entityManager->flush();
+
+        return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
+    }
 }
