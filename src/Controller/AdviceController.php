@@ -19,56 +19,66 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 class AdviceController extends AbstractController
 {
     /**
-     * Permet de récupérer un tableau avec tous les conseils du mois spécifié
+     * Permet de récupérer tous les conseils du mois spécifié.
      */
     #[Route('/api/conseil/{mois}', name: 'app_advice_by_month', methods: ['GET'])]
-    public function getAdviceByMonce($mois, MonthRepository $monthRepository, SerializerInterface $serializer): JsonResponse
+    public function getAdviceByMonth($mois, MonthRepository $monthRepository, SerializerInterface $serializer): JsonResponse
     {
+        // On récupère le mois spécifié en base de données.
         $month = $monthRepository->find($mois);
 
+        // On vérifie si le mois existe.
         if (!$month) {
-            throw new NotFoundHttpException("Month with ID $mois not found.");
+            throw new NotFoundHttpException("Mois avec l'ID $mois non trouvé.");
         }
 
+        // On récupère la liste des conseils associés au mois.
         $advices = $month->getAdviceList();
 
+        // On vérifie si des conseils existent.
         if ($advices->isEmpty()) {
-            return new JsonResponse(['error' => 'Advices not found.'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => 'Aucun conseil trouvé.'], Response::HTTP_NOT_FOUND);
         }
 
+        // On sérialise la liste des conseils pour la retourner dans la réponse.
         $jsonAdvices = $serializer->serialize($advices, 'json', ['groups' => 'getAdvice']);
 
         return new JsonResponse($jsonAdvices, Response::HTTP_OK, [], true);
     }
 
     /**
-     * Permet de récupérer un tableau avec tous les conseils du mois en cours.
+     * Permet de récupérer tous les conseils du mois en cours.
      */
     #[Route('/api/conseil/', name: 'app_get_advice_by_current_month', methods: 'GET')]
     public function getAdviceByCurrentMonth(MonthRepository $monthRepository, SerializerInterface $serializer): JsonResponse
     {
+        // On obtient le mois en cours.
         $currentMonth = (new \DateTime())->format('n');
         $month = $monthRepository->find($currentMonth);
 
+        // On vérifie si le mois existe.
         if (!$month) {
-            throw new NotFoundHttpException("Current month ($currentMonth) not found.");
+            throw new NotFoundHttpException("Mois actuel ($currentMonth) non trouvé.");
         }
 
+        // On récupère la liste des conseils associés au mois actuel.
         $advices = $month->getAdviceList();
 
+        // On vérifie si des conseils existent.
         if ($advices->isEmpty()) {
-            return new JsonResponse(['error' => 'Advices not found.'], Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['error' => 'Aucun conseil trouvé.'], Response::HTTP_NOT_FOUND);
         }
 
+        // On sérialise la liste des conseils pour la retourner la réponse.
         $jsonAdvices = $serializer->serialize($advices, 'json', ['groups' => 'getAdvice']);
 
         return new JsonResponse($jsonAdvices, Response::HTTP_OK, [], true);
     }
 
     /**
-     * Permet d’ajouter un conseil. 
+     * Permet d’ajouter un nouveau conseil. 
      */
-    #[Route('api/conseil', name: 'app_createAdvice', methods: ['POST'])]
+    #[Route('/api/conseil', name: 'app_createAdvice', methods: ['POST'])]
     public function createAdvice(
         Request $request,
         SerializerInterface $serializer,
@@ -76,35 +86,41 @@ class AdviceController extends AbstractController
         MonthRepository $monthRepository,
         ValidatorInterface $validator
     ): JsonResponse {
+        // On récupère le contenu de la requête.
         $jsonAdvice = $request->getContent();
 
+        // On désérialise le contenu JSON en un objet Advice.
         $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json');
 
+        // On récupère les mois associés au conseil depuis la requête.
         $content = $request->toArray();
         $months = $content['month'] ?? [];
 
+        // On associe les mois au conseil.
         foreach ($months as $monthNumber) {
             $month = $monthRepository->find($monthNumber);
 
             if ($month) {
                 $advice->addMonth($month);
             } else {
-                throw new NotFoundHttpException("Invalid month: $monthNumber.");
+                throw new NotFoundHttpException("Mois invalide : $monthNumber.");
             }
         }
 
-        // On vérifie les erreurs
-        $errors = $validator->validate($advice);
-        if ($errors->count() > 0) {
-            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
+        // On vérifie les erreurs de validation.
+        $validationErrors = $validator->validate($advice);
+        if ($validationErrors->count() > 0) {
+            return new JsonResponse($serializer->serialize($validationErrors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
 
+        // On enregistre le nouveau conseil en base de données.
         $entityManager->persist($advice);
         $entityManager->flush();
 
-        $advice = $serializer->serialize($advice, 'json', ['groups' => 'getAdvice']);
+        // On sérialise l'objet conseil créé pour le retourner dans la réponse.
+        $createdAdviceJson = $serializer->serialize($advice, 'json', ['groups' => 'getAdvice']);
 
-        return new JsonResponse($advice, Response::HTTP_CREATED, [], true);
+        return new JsonResponse($createdAdviceJson, Response::HTTP_CREATED, [], true);
     }
 
     /**
@@ -122,10 +138,10 @@ class AdviceController extends AbstractController
         // On récupère l'entité existante par son ID.
         $currentAdvice = $adviceRepository->find($id);
         if (!$currentAdvice) {
-            throw new NotFoundHttpException("Advice with ID $id not found.");
+            throw new NotFoundHttpException("Conseil avec l'ID $id non trouvé.");
         }
 
-        // Désérialisation des nouvelles données dans l'entité existante.
+        // On désérialise des nouvelles données dans l'entité existante.
         $updatedAdvice = $serializer->deserialize(
             $request->getContent(),
             Advice::class,
@@ -133,23 +149,23 @@ class AdviceController extends AbstractController
             [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAdvice]
         );
 
-        // Mise à jour des mois s'ils sont présents dans la requête.
+        // On met à jour des mois s'ils sont présents dans la requête.
         $content = $request->toArray();
         $months = $content['month'] ?? [];
 
         if (!empty($months)) {
-            $currentAdvice->clearMonths();  // Réinitialisation des mois actuels.
+            $currentAdvice->clearMonths();  // On réinitialise des mois actuels.
             foreach ($months as $monthNumber) {
                 $month = $monthRepository->find($monthNumber);
                 if ($month) {
                     $currentAdvice->addMonth($month);
                 } else {
-                    throw new NotFoundHttpException("Invalid month: $monthNumber.");
+                    throw new NotFoundHttpException("Mois invalide : $monthNumber.");
                 }
             }
         }
 
-        // Sauvegarde des changements.
+        // On enregistre le conseil mis à jour en base de données.
         $entityManager->persist($updatedAdvice);
         $entityManager->flush();
 
@@ -162,12 +178,15 @@ class AdviceController extends AbstractController
     #[Route('/api/conseil/{id}', name: 'app_deleteAdvice', methods: ['DELETE'])]
     public function deleteAdvice(int $id, EntityManagerInterface $entityManager, AdviceRepository $adviceRepository): JsonResponse
     {
+        // On récupère le conseil à supprimer en base de données.
         $currentAdvice = $adviceRepository->find($id);
 
+        // On vérifie si le conseil existe.
         if (!$currentAdvice) {
-            throw new NotFoundHttpException("Advice with ID $id not found.");
+            throw new NotFoundHttpException("Conseil avec l'ID $id non trouvé.");
         }
 
+        // On supprime le conseil en base de données.
         $entityManager->remove($currentAdvice);
         $entityManager->flush();
 
