@@ -117,8 +117,7 @@ class AdviceController extends AbstractController
         SerializerInterface $serializer,
         AdviceRepository $adviceRepository,
         EntityManagerInterface $entityManager,
-        MonthRepository $monthRepository,
-        ValidatorInterface $validator
+        MonthRepository $monthRepository
     ): JsonResponse {
         // On récupère l'entité existante par son ID.
         $currentAdvice = $adviceRepository->find($id);
