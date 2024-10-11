@@ -112,7 +112,7 @@ class AdviceController extends AbstractController
      */
     #[Route('/api/conseil/{id}', name: 'app_updateAdvice', methods: ['PUT'])]
     public function updateAdvice(
-        $id,
+        int $id,
         Request $request,
         SerializerInterface $serializer,
         AdviceRepository $adviceRepository,
@@ -160,7 +160,7 @@ class AdviceController extends AbstractController
      * Permet de supprimer un conseil. 
      */
     #[Route('/api/conseil/{id}', name: 'app_deleteAdvice', methods: ['DELETE'])]
-    public function deleteAdvice($id, EntityManagerInterface $entityManager, AdviceRepository $adviceRepository): JsonResponse
+    public function deleteAdvice(int $id, EntityManagerInterface $entityManager, AdviceRepository $adviceRepository): JsonResponse
     {
         $currentAdvice = $adviceRepository->find($id);
 

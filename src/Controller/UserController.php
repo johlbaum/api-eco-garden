@@ -64,7 +64,7 @@ class UserController extends AbstractController
      */
     #[Route('/api/user/{id}', name: 'app_updateUser', methods: ['PUT'])]
     public function updateUser(
-        $id,
+        int $id,
         UserRepository $userRepository,
         Request $request,
         SerializerInterface $serializer,
@@ -109,5 +109,26 @@ class UserController extends AbstractController
         $updatedUserJson = $serializer->serialize($updatedUser, 'json');
 
         return new JsonResponse($updatedUserJson, JsonResponse::HTTP_OK, [], true);
+    }
+
+    /**
+     * Permet de supprimer utilisateur.
+     */
+    #[Route('/api/user/{id}', name: 'app_deleteUser', methods: ['DELETE'])]
+    public function deleteUser(int $id, UserRepository $userRepository, EntityManagerInterface $entityManager): JsonResponse
+    {
+        // On récupère l'utilisateur à supprimer en base de données.
+        $user = $userRepository->find($id);
+
+        // On vérifie si l'utilisateur existe.
+        if (!$user) {
+            return new JsonResponse(['message' => 'User not found'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        // On supprime l'utilisateur en base de données.
+        $entityManager->remove($user);
+        $entityManager->flush();
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 }
