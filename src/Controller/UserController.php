@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -62,6 +63,7 @@ class UserController extends AbstractController
     /**
      * Permet de mettre à jour un compte utilisateur.
      */
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour mettre à jour un compte')]
     #[Route('/api/user/{id}', name: 'app_updateUser', methods: ['PUT'])]
     public function updateUser(
         int $id,
@@ -114,6 +116,7 @@ class UserController extends AbstractController
     /**
      * Permet de supprimer utilisateur.
      */
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer un compte')]
     #[Route('/api/user/{id}', name: 'app_deleteUser', methods: ['DELETE'])]
     public function deleteUser(int $id, UserRepository $userRepository, EntityManagerInterface $entityManager): JsonResponse
     {

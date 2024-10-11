@@ -14,6 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class AdviceController extends AbstractController
@@ -78,6 +79,7 @@ class AdviceController extends AbstractController
     /**
      * Permet d’ajouter un nouveau conseil. 
      */
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour ajouter un nouveau conseil')]
     #[Route('/api/conseil', name: 'app_createAdvice', methods: ['POST'])]
     public function createAdvice(
         Request $request,
@@ -126,6 +128,7 @@ class AdviceController extends AbstractController
     /**
      * Permet de mettre à jour un conseil. 
      */
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour mettre à jour un conseil')]
     #[Route('/api/conseil/{id}', name: 'app_updateAdvice', methods: ['PUT'])]
     public function updateAdvice(
         int $id,
@@ -175,6 +178,7 @@ class AdviceController extends AbstractController
     /**
      * Permet de supprimer un conseil. 
      */
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer un conseil')]
     #[Route('/api/conseil/{id}', name: 'app_deleteAdvice', methods: ['DELETE'])]
     public function deleteAdvice(int $id, EntityManagerInterface $entityManager, AdviceRepository $adviceRepository): JsonResponse
     {
