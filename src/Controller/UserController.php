@@ -50,6 +50,9 @@ class UserController extends AbstractController
         $hashedPassword = $userPasswordHasher->hashPassword($newUser, $newUser->getPassword());
         $newUser->setPassword($hashedPassword);
 
+        // On attribue un rôle User par défaut.
+        $newUser->setRoles(['ROLE_USER']);
+
         // On enregristre le nouvel utilisateur dans la base de données.
         $entityManager->persist($newUser);
         $entityManager->flush();
