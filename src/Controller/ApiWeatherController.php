@@ -6,15 +6,19 @@ use App\Entity\User;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class ApiWeatherController extends AbstractController
 {
     private string $apiKey;
+    private TagAwareCacheInterface $cachePool;
 
-    public function __construct()
+    public function __construct(TagAwareCacheInterface $cachePool)
     {
         $this->apiKey = $_ENV['OPENWEATHER_API_KEY'];
+        $this->cachePool = $cachePool;
     }
 
     /**
@@ -43,33 +47,47 @@ class ApiWeatherController extends AbstractController
     }
 
     /**
-     * Permet de récupèrer les données météo d'une ville donnée via l'API OpenWeather.
+     * Permet de récupérer les données météo d'une ville donnée.
      */
     private function fetchWeatherData(string $town, HttpClientInterface $httpClient): JsonResponse
     {
-        $response = $httpClient->request(
-            'GET',
-            "https://api.openweathermap.org/data/2.5/weather?q={$town}&appid=" . $this->apiKey // Utilisation de $this->apiKey
-        );
+        // On génère une clé de cache spécifique pour la ville.
+        $cacheKey = "weather_" . $town;
 
-        if ($response->getStatusCode() !== 200) {
-            return new JsonResponse(['error' => 'Weather data not found'], $response->getStatusCode());
-        }
+        // On récupère les données météo depuis le cache ou on effectue la requête si non disponible.
+        $cachedWeatherData = $this->cachePool->get($cacheKey, function (ItemInterface $item) use ($httpClient, $town) {
+            // On définit l'expiration du cache.
+            $item->expiresAfter(600); // Expire après 600 secondes (10 minutes).
 
-        // On convertit le contenu de la réponse JSON renvoyée par l'API en un tableau associatif.
-        $weatherData = json_decode($response->getContent(), true);
+            // On tag les éléments pour pouvoir les supprimer en groupe par la suite.
+            $item->tag("weatherCache");
+            // On effectue la requête vers l'API OpenWeather
+            $apiResponse = $httpClient->request(
+                'GET',
+                "https://api.openweathermap.org/data/2.5/weather?q={$town}&appid=" . $this->apiKey
+            );
 
-        if (isset($weatherData['weather']) && !empty($weatherData['weather'])) {
-            $weatherDescription = $weatherData['weather'][0]['description'];
-        } else {
-            return new JsonResponse(['error' => 'Weather data not found'], 404);
-        }
+            if ($apiResponse->getStatusCode() !== 200) {
+                throw new \Exception('Weather data not found');
+            }
 
-        $responseData = [
-            'city' => $town,
-            'weather' => $weatherDescription,
-        ];
+            // On convertit le contenu de la réponse JSON renvoyée par l'API en un tableau associatif.
+            $weatherInfo = json_decode($apiResponse->getContent(), true);
 
-        return new JsonResponse($responseData, 200);
+            // On vérifie si les données existent et on extrait les données.
+            if (isset($weatherInfo['weather']) && !empty($weatherInfo['weather'])) {
+                $description = $weatherInfo['weather'][0]['description'];
+            } else {
+                return new JsonResponse(['error' => 'Weather data not found'], 404);
+            }
+
+            // On structure la réponse JSON.
+            return [
+                'city' => $town,
+                'weather' => $description,
+            ];
+        });
+
+        return new JsonResponse($cachedWeatherData, 200);
     }
 }
