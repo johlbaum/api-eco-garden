@@ -16,6 +16,8 @@ use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use OpenApi\Attributes as OA;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class UserController extends AbstractController
 {
@@ -60,8 +62,8 @@ class UserController extends AbstractController
             ]
         )
     )]
-    #[OA\Response(response: 400, description: 'Erreur de validation')]
-    #[OA\Response(response: 500, description: 'Erreur : email dupliqué)')]
+    #[OA\Response(response: 400, description: 'Erreur de validation.')]
+    #[OA\Response(response: 500, description: 'Un utilisateur est déja enregistré avec cette adresse email.)')]
     #[OA\Tag(name: 'Users')]
 
     public function createUser(
@@ -71,21 +73,17 @@ class UserController extends AbstractController
         UserPasswordHasherInterface $userPasswordHasher,
         EntityManagerInterface $entityManager
     ): JsonResponse {
+
         // On récupère le contenu de la requête.
         $requestContent = $request->getContent();
 
         // On désérialise le contenu JSON en un objet User.
         $newUser = $serializer->deserialize($requestContent, User::class, 'json');
 
-        // On valide l'objet User et on retourne les erreurs s'il y en a.
-        $validationErrors = $validator->validate($newUser);
-        if ($validationErrors->count() > 0) {
-            return new JsonResponse(
-                $serializer->serialize($validationErrors, 'json'),
-                JsonResponse::HTTP_BAD_REQUEST,
-                [],
-                true
-            );
+        // On vérifie les erreurs.
+        $errors = $validator->validate($newUser);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
 
         // On hash le mot de passe de l'utilisateur.
@@ -116,7 +114,7 @@ class UserController extends AbstractController
      * @param EntityManagerInterface $entityManager
      * @return JsonResponse
      */
-    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour mettre à jour un compte')]
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour mettre à jour un compte.')]
     #[Route('/api/user/{id}', name: 'app_updateUser', methods: ['PUT'])]
     #[OA\Parameter(
         name: 'id',
@@ -156,57 +154,45 @@ class UserController extends AbstractController
             ]
         )
     )]
-    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 404, description: 'Utilisateur non trouvé')]
-    #[OA\Response(response: 400, description: 'Erreur de validation')]
-    #[OA\Response(response: 500, description: 'Erreur : email dupliqué)')]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant.')]
+    #[OA\Response(response: 404, description: 'Utilisateur non trouvé.')]
+    #[OA\Response(response: 400, description: 'Erreur de validation.')]
+    #[OA\Response(response: 500, description: 'Un utilisateur est déja enregistré avec cette adresse email.)')]
     #[OA\Tag(name: 'Users')]
+
     public function updateUser(
         int $id,
         UserRepository $userRepository,
         Request $request,
         SerializerInterface $serializer,
-        ValidatorInterface $validator,
-        EntityManagerInterface $entityManager
+        EntityManagerInterface $entityManager,
+        ValidatorInterface $validator
     ): JsonResponse {
-        // On récupère l'utilisateur à mettre à jour en base de données.
-        $user = $userRepository->find($id);
 
-        // On vérifie si l'utilisateur existe.
-        if (!$user) {
-            return new JsonResponse(['message' => 'User not found'], JsonResponse::HTTP_NOT_FOUND);
+        // On vérifie que la requête ne soit pas vide.
+        if (empty($request->getContent())) {
+            throw new BadRequestHttpException('Aucune donnée à mettre à jour.');
         }
 
-        // On récupère le contenu de la requête.
-        $jsonUser = $request->getContent();
+        // On récupère l'utilisateur à mettre à jour en base de données.
+        $currentUser = $userRepository->find($id);
+        if (!$currentUser) {
+            throw new NotFoundHttpException("Utilisateur avec l'ID $id non trouvé.");
+        }
 
-        // On désérialise le contenu JSON en un objet User.
-        $updatedUser = $serializer->deserialize(
-            $jsonUser,
-            User::class,
-            'json',
-            [AbstractNormalizer::OBJECT_TO_POPULATE => $user]
-        );
+        // On désérialise les données de la requête dans l'objet existant en modifiant uniquement les propriétés envoyées.
+        $updatedUser = $serializer->deserialize($request->getContent(), User::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentUser]);
 
-        // On valide l'objet User et on retourne les erreurs s'il y en a.
-        $validationErrors = $validator->validate($updatedUser);
-        if ($validationErrors->count() > 0) {
-            return new JsonResponse(
-                $serializer->serialize($validationErrors, 'json'),
-                JsonResponse::HTTP_BAD_REQUEST,
-                [],
-                true
-            );
+        // On vérifie les contraintes de validation.
+        $errors = $validator->validate($updatedUser);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
 
         // On enregistre l'utilisateur en base de données.
-        $entityManager->persist($updatedUser);
         $entityManager->flush();
 
-        // On sérialise l'objet utilisateur mis à jour pour le retourner dans la réponse.
-        $updatedUserJson = $serializer->serialize($updatedUser, 'json');
-
-        return new JsonResponse($updatedUserJson, JsonResponse::HTTP_OK, [], true);
+        return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
     }
 
     /**
@@ -217,7 +203,7 @@ class UserController extends AbstractController
      * @param EntityManagerInterface $entityManager
      * @return JsonResponse
      */
-    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer un compte')]
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer un compte.')]
     #[Route('/api/user/{id}', name: 'app_deleteUser', methods: ['DELETE'])]
     #[OA\Parameter(
         name: 'id',
@@ -227,18 +213,23 @@ class UserController extends AbstractController
         example: 1,
         schema: new OA\Schema(type: 'integer')
     )]
-    #[OA\Response(response: 204, description: 'Utilisateur supprimé avec succès')]
+    #[OA\Response(response: 204, description: 'Utilisateur supprimé avec succès.')]
     #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 404, description: 'Utilisateur non trouvé')]
+    #[OA\Response(response: 404, description: 'Utilisateur non trouvé.')]
     #[OA\Tag(name: 'Users')]
-    public function deleteUser(int $id, UserRepository $userRepository, EntityManagerInterface $entityManager): JsonResponse
-    {
+
+    public function deleteUser(
+        int $id,
+        UserRepository $userRepository,
+        EntityManagerInterface $entityManager
+    ): JsonResponse {
+
         // On récupère l'utilisateur à supprimer en base de données.
         $user = $userRepository->find($id);
 
         // On vérifie si l'utilisateur existe.
         if (!$user) {
-            return new JsonResponse(['message' => 'User not found'], JsonResponse::HTTP_NOT_FOUND);
+            throw new NotFoundHttpException("Utilisateur avec l'ID $id non trouvé.");
         }
 
         // On supprime l'utilisateur en base de données.

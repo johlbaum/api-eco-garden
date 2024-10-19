@@ -7,6 +7,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: MonthRepository::class)]
 class Month
@@ -19,6 +20,13 @@ class Month
 
     #[ORM\Column]
     #[Groups(["getAdvice"])]
+    #[Assert\NotBlank(message: "Le numéro de mois est obligatoire.")]
+    #[Assert\Range(
+        min: 1,
+        max: 12,
+        minMessage: "Le numéro du mois doit être au moins {{ limit }}.",
+        maxMessage: "Le numéro du mois ne peut pas dépasser {{ limit }}."
+    )]
     private ?int $monthNumber = null;
 
     /**

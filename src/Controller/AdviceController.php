@@ -18,6 +18,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Nelmio\ApiDocBundle\Annotation\Security;
 use OpenApi\Attributes as OA;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class AdviceController extends AbstractController
 {
@@ -63,20 +64,25 @@ class AdviceController extends AbstractController
             )
         )
     )]
-    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 404, description: 'Mois non trouvé')]
-    #[OA\Response(response: 204, description: 'Aucun conseil trouvé pour ce mois')]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant.')]
+    #[OA\Response(response: 404, description: 'Mois non trouvé. Cela peut se produire dans les deux situations suivantes :
+    1. L\'ID du mois spécifié n\'existe pas dans la base de données.
+    2. Le mois existe, mais aucun conseil n\'est associé à ce mois.')]
     #[OA\Tag(name: 'Advices')]
     #[Security(name: 'Bearer')]
 
-    public function getAdviceByMonth($mois, MonthRepository $monthRepository, SerializerInterface $serializer): JsonResponse
-    {
+    public function getAdviceByMonth(
+        $mois,
+        MonthRepository $monthRepository,
+        SerializerInterface $serializer
+    ): JsonResponse {
+
         // On récupère le mois spécifié en base de données.
         $month = $monthRepository->find($mois);
 
         // On vérifie si le mois existe.
         if (!$month) {
-            throw new NotFoundHttpException("Mois avec l'ID $mois non trouvé.");
+            throw new NotFoundHttpException("Le mois avec l'ID $mois n'existe pas.");
         }
 
         // On récupère la liste des conseils associés au mois.
@@ -84,7 +90,7 @@ class AdviceController extends AbstractController
 
         // On vérifie si des conseils existent.
         if ($advices->isEmpty()) {
-            return new JsonResponse(['error' => 'Aucun conseil trouvé.'], Response::HTTP_NOT_FOUND);
+            throw new NotFoundHttpException("Aucun conseil trouvé pour le mois avec l'ID $mois.");
         }
 
         // On sérialise la liste des conseils pour la retourner dans la réponse.
@@ -126,32 +132,29 @@ class AdviceController extends AbstractController
             )
         )
     )]
-    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 404, description: 'Mois actuel non trouvé')]
-    #[OA\Response(response: 204, description: 'Aucun conseil trouvé pour le mois actuel')]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant.')]
+    #[OA\Response(response: 404, description: 'Aucun conseil trouvé pour le mois en cours.')]
     #[OA\Tag(name: 'Advices')]
     #[Security(name: 'Bearer')]
 
-    public function getAdviceByCurrentMonth(MonthRepository $monthRepository, SerializerInterface $serializer): JsonResponse
-    {
+    public function getAdviceByCurrentMonth(
+        MonthRepository $monthRepository,
+        SerializerInterface $serializer
+    ): JsonResponse {
+
         // On obtient le mois en cours.
         $currentMonth = (new \DateTime())->format('n');
         $month = $monthRepository->find($currentMonth);
-
-        // On vérifie si le mois existe.
-        if (!$month) {
-            throw new NotFoundHttpException("Mois actuel ($currentMonth) non trouvé.");
-        }
 
         // On récupère la liste des conseils associés au mois actuel.
         $advices = $month->getAdviceList();
 
         // On vérifie si des conseils existent.
         if ($advices->isEmpty()) {
-            return new JsonResponse(['error' => 'Aucun conseil trouvé.'], Response::HTTP_NOT_FOUND);
+            throw new NotFoundHttpException("Aucun conseil trouvé pour le mois en cours.");
         }
 
-        // On sérialise la liste des conseils pour la retourner la réponse.
+        // On sérialise la liste des conseils pour la retourner dans la réponse.
         $jsonAdvices = $serializer->serialize($advices, 'json', ['groups' => 'getAdvice']);
 
         return new JsonResponse($jsonAdvices, Response::HTTP_OK, [], true);
@@ -167,7 +170,7 @@ class AdviceController extends AbstractController
      * @param ValidatorInterface $validator
      * @return JsonResponse
      */
-    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour ajouter un nouveau conseil')]
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour ajouter un nouveau conseil.')]
     #[Route('/api/conseil', name: 'app_createAdvice', methods: ['POST'])]
     #[OA\RequestBody(
         required: true,
@@ -176,7 +179,7 @@ class AdviceController extends AbstractController
             type: 'object',
             properties: [
                 new OA\Property(property: 'description', type: 'string', example: 'Conseil de jardinage'),
-                new OA\Property(property: 'month', type: 'array', items: new OA\Items(type: 'integer'), example: [2])
+                new OA\Property(property: 'months', type: 'array', items: new OA\Items(type: 'integer'), example: [2])
             ]
         )
     )]
@@ -202,9 +205,9 @@ class AdviceController extends AbstractController
             ]
         )
     )]
-    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 400, description: 'Erreur de validation')]
-    #[OA\Response(response: 404, description: 'Mois invalide')]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant.')]
+    #[OA\Response(response: 400, description: 'Erreur de validation.')]
+    #[OA\Response(response: 404, description: 'Au moins un moins associé au conseil est invalide.')]
     #[OA\Tag(name: 'Advices')]
     #[Security(name: 'Bearer')]
 
@@ -215,17 +218,18 @@ class AdviceController extends AbstractController
         MonthRepository $monthRepository,
         ValidatorInterface $validator
     ): JsonResponse {
+
         // On récupère le contenu de la requête.
         $jsonAdvice = $request->getContent();
 
-        // On désérialise le contenu JSON en un objet Advice.
-        $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json');
+        // On désérialise le contenu JSON en un objet Advice mais il n'inclut pas le ou les mois associés au conseil.
+        $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json', ["groups" => "createAdvice"]);
 
-        // On récupère les mois associés au conseil depuis la requête.
+        // On récupère le ou les mois associés au conseil depuis la requête.
         $content = $request->toArray();
-        $months = $content['month'] ?? [];
+        $months = $content['months'] ?? [];
 
-        // On associe les mois au conseil.
+        // On associe le ou les mois au conseil.
         foreach ($months as $monthNumber) {
             $month = $monthRepository->find($monthNumber);
 
@@ -236,17 +240,17 @@ class AdviceController extends AbstractController
             }
         }
 
-        // On vérifie les erreurs de validation.
-        $validationErrors = $validator->validate($advice);
-        if ($validationErrors->count() > 0) {
-            return new JsonResponse($validationErrors, Response::HTTP_BAD_REQUEST);
+        // On vérifie les contraintes de validation.
+        $errors = $validator->validate($advice);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
 
-        // On persiste le nouveau conseil en base de données.
+        // On enregistre le nouveau conseil en base de données.
         $entityManager->persist($advice);
         $entityManager->flush();
 
-        // On sérialise le nouveau conseil pour la réponse.
+        // On sérialise le conseil créé pour le retourner dans la réponse.
         $jsonResponse = $serializer->serialize($advice, 'json', ['groups' => 'getAdvice']);
 
         return new JsonResponse($jsonResponse, Response::HTTP_CREATED, [], true);
@@ -264,7 +268,7 @@ class AdviceController extends AbstractController
      * @param ValidatorInterface $validator
      * @return JsonResponse
      */
-    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour modifier ce conseil')]
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour modifier ce conseil.')]
     #[Route('/api/conseil/{id}', name: 'app_updateAdvice', methods: ['PUT'])]
     #[OA\Parameter(
         name: 'id',
@@ -284,10 +288,10 @@ class AdviceController extends AbstractController
             ]
         )
     )]
-    #[OA\Response(response: 200, description: 'Conseil modifié avec succès')]
-    #[OA\Response(response: 400, description: 'Erreur de validation')]
-    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 404, description: 'Conseil non trouvé')]
+    #[OA\Response(response: 200, description: 'Conseil modifié avec succès.')]
+    #[OA\Response(response: 400, description: 'Aucune donnée à mettre à jour ou erreur de validation.')]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant.')]
+    #[OA\Response(response: 404, description: 'Le conseil à modifier n\'a pas été trouvé en base de données.')]
     #[OA\Tag(name: 'Advices')]
     #[Security(name: 'Bearer')]
 
@@ -300,43 +304,54 @@ class AdviceController extends AbstractController
         MonthRepository $monthRepository,
         ValidatorInterface $validator
     ): JsonResponse {
-        // On récupère le conseil existant.
-        $advice = $adviceRepository->find($id);
-        if (!$advice) {
+
+        // On vérifie que la requête ne soit pas vide.
+        if (empty($request->getContent())) {
+            throw new BadRequestHttpException('Aucune donnée à mettre à jour.');
+        }
+
+        // On récupère le conseil à mettre à jour en base de données.
+        $currentAdvice = $adviceRepository->find($id);
+        if (!$currentAdvice) {
             throw new NotFoundHttpException("Conseil avec l'ID $id non trouvé.");
         }
 
-        // On récupère les données à mettre à jour.
-        $jsonAdvice = $request->getContent();
-        $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $advice]);
+        // On désérialise les données de la requête dans l'objet existant en modifiant uniquement les propriétés envoyées.
+        // À ce stade, les mois associés ne seront pas modifiés, même s'ils sont présents dans la requête. 
+        $updatedAdvice = $serializer->deserialize($request->getContent(), Advice::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAdvice]);
 
-        // On récupère les mois associés au conseil depuis la requête.
+        // On récupère le contenu de la requête.
         $content = $request->toArray();
-        $months = $content['month'] ?? [];
 
-        // On associe les mois au conseil.
-        foreach ($months as $monthNumber) {
-            $month = $monthRepository->find($monthNumber);
-            if ($month) {
-                $advice->addMonth($month);
-            } else {
-                throw new NotFoundHttpException("Mois invalide : $monthNumber.");
+        // Si la clé 'months' est présente dans la requête, on met à jour les mois associés.
+        if (isset($content['months'])) {
+            $months = $content['months'];
+
+            // On supprime les mois existants.
+            $updatedAdvice->getMonths()->clear();
+
+            // On associe les nouveaux mois au conseil.
+            foreach ($months as $monthNumber) {
+                $month = $monthRepository->find($monthNumber);
+                if ($month) {
+                    $updatedAdvice->addMonth($month);
+                    $entityManager->persist($month);
+                } else {
+                    throw new NotFoundHttpException("Mois invalide : $monthNumber.");
+                }
             }
         }
 
-        // On vérifie les erreurs de validation.
-        $validationErrors = $validator->validate($advice);
-        if ($validationErrors->count() > 0) {
-            return new JsonResponse($validationErrors, Response::HTTP_BAD_REQUEST);
+        // On vérifie les contraintes de validation.
+        $errors = $validator->validate($updatedAdvice);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
 
         // On met à jour le conseil en base de données.
         $entityManager->flush();
 
-        // On sérialise le conseil mis à jour pour la réponse.
-        $jsonResponse = $serializer->serialize($advice, 'json', ['groups' => 'getAdvice']);
-
-        return new JsonResponse($jsonResponse, Response::HTTP_OK, [], true);
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
     /**
@@ -347,7 +362,7 @@ class AdviceController extends AbstractController
      * @param EntityManagerInterface $entityManager 
      * @return JsonResponse
      */
-    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer ce conseil')]
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer ce conseil.')]
     #[Route('/api/conseil/{id}', name: 'app_deleteAdvice', methods: ['DELETE'])]
     #[OA\Parameter(
         name: 'id',
@@ -356,9 +371,9 @@ class AdviceController extends AbstractController
         required: true,
         schema: new OA\Schema(type: 'integer')
     )]
-    #[OA\Response(response: 204, description: 'Conseil supprimé avec succès')]
-    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 404, description: 'Conseil non trouvé')]
+    #[OA\Response(response: 204, description: 'Conseil supprimé avec succès.')]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant.')]
+    #[OA\Response(response: 404, description: 'Conseil à supprimer non trouvé.')]
     #[OA\Tag(name: 'Advices')]
     #[Security(name: 'Bearer')]
 
@@ -367,6 +382,7 @@ class AdviceController extends AbstractController
         AdviceRepository $adviceRepository,
         EntityManagerInterface $entityManager
     ): JsonResponse {
+
         // On récupère le conseil à supprimer.
         $advice = $adviceRepository->find($id);
         if (!$advice) {

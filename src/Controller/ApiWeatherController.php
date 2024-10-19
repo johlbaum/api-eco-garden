@@ -50,7 +50,7 @@ class ApiWeatherController extends AbstractController
         )
     )]
     #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
-    #[OA\Response(response: 404, description: 'Ville non trouvée')]
+    #[OA\Response(response: 404, description: 'Ville non trouvée.')]
     #[OA\Tag(name: 'Weather')]
 
     public function getWeatherByTown(string $ville, HttpClientInterface $httpClient): JsonResponse
@@ -89,6 +89,7 @@ class ApiWeatherController extends AbstractController
         }
 
         $userTown = $user->getTown();
+
         return $this->fetchWeatherData($userTown, $httpClient);
     }
 
@@ -104,13 +105,12 @@ class ApiWeatherController extends AbstractController
         // On génère une clé de cache spécifique pour la ville.
         $cacheKey = "weather_" . $town;
 
-        // On récupère les données météo depuis le cache ou on effectue la requête si non disponible.
-        $cachedWeatherData = $this->cachePool->get($cacheKey, function (ItemInterface $item) use ($httpClient, $town) {
+        // On vérifie si les données météo sont en cache. Si non, on effectue une requête et on les met en cache.
+        $weatherData = $this->cachePool->get($cacheKey, function (ItemInterface $item) use ($httpClient, $town) {
+
             // On définit l'expiration du cache.
             $item->expiresAfter(600); // Expire après 600 secondes (10 minutes).
 
-            // On tag les éléments pour pouvoir les supprimer en groupe par la suite.
-            $item->tag("weatherCache");
             // On effectue la requête vers l'API OpenWeather
             $apiResponse = $httpClient->request(
                 'GET',
@@ -118,7 +118,7 @@ class ApiWeatherController extends AbstractController
             );
 
             if ($apiResponse->getStatusCode() !== 200) {
-                throw new \Exception('Weather data not found');
+                throw new \Exception('Données météo introuvables.');
             }
 
             // On convertit le contenu de la réponse JSON renvoyée par l'API en un tableau associatif.
@@ -128,16 +128,17 @@ class ApiWeatherController extends AbstractController
             if (isset($weatherInfo['weather']) && !empty($weatherInfo['weather'])) {
                 $description = $weatherInfo['weather'][0]['description'];
             } else {
-                return new JsonResponse(['error' => 'Weather data not found'], 404);
+                return new JsonResponse(['error' => 'Données météo introuvables.'], 404);
             }
 
-            // On structure la réponse JSON.
+            // On structure la réponse JSON pour la mettre en cache.
             return [
                 'city' => $town,
                 'weather' => $description,
             ];
         });
 
-        return new JsonResponse($cachedWeatherData, 200);
+        // On retourne les données (du cache ou de la requête) au client.
+        return new JsonResponse($weatherData, 200);
     }
 }

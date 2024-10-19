@@ -16,12 +16,13 @@ class Advice
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(["getAdvice"])]
+    #[Groups(["getAdvice", "createAdvice"])]
     private ?int $id = null;
 
     #[ORM\Column(type: Types::TEXT)]
-    #[Groups(["getAdvice"])]
+    #[Groups(["getAdvice", "createAdvice"])]
     #[Assert\NotBlank(message: "La description du conseil est obligatoire.")]
+    #[Assert\Length(max: 1000, maxMessage: "La description ne peut pas dépasser {{ limit }} caractères.")]
     private ?string $description = null;
 
     /**

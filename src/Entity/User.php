@@ -21,11 +21,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(length: 180)]
     #[Assert\NotBlank(message: "L'email est obligatoire.")]
+    #[Assert\Email(message: "L'email '{{ value }}' n'est pas un email valide.")]
     #[Groups("createUser")]
     private ?string $email = null;
 
     #[ORM\Column(length: 100)]
     #[Assert\NotBlank(message: "La ville est obligatoire.")]
+    #[Assert\Length(max: 20, maxMessage: "La ville ne peut pas dépasser {{ limit }} caractères.")]
     #[Groups("createUser")]
     private ?string $town = null;
 
@@ -41,6 +43,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     #[ORM\Column]
     #[Assert\NotBlank(message: "Le password est obligatoire.")]
+    #[Assert\Length(
+        min: 6,
+        max: 50,
+        minMessage: "Le mot de passe doit contenir au moins {{ limit }} caractères.",
+        maxMessage: "Le mot de passe ne peut pas dépasser {{ limit }} caractères."
+    )]
     private ?string $password = null;
 
     public function getId(): ?int
