@@ -9,6 +9,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use OpenApi\Attributes as OA;
 
 class ApiWeatherController extends AbstractController
 {
@@ -23,8 +24,35 @@ class ApiWeatherController extends AbstractController
 
     /**
      * Permet de retourner la météo d’une ville donnée. 
+     * 
+     * @param string $ville Le nom de la ville pour laquelle récupérer la météo.
+     * @param HttpClientInterface $httpClient 
+     * @return JsonResponse 
      */
     #[Route('/api/meteo/{ville}', name: 'app_getWeatherByTown', methods: ['GET'])]
+    #[OA\Parameter(
+        name: 'ville',
+        in: 'path',
+        description: 'Le nom de la ville pour laquelle récupérer la météo',
+        required: true,
+        example: 'Paris',
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Retourne les données météo de la ville spécifiée',
+        content: new OA\JsonContent(
+            type: 'object',
+            properties: [
+                new OA\Property(property: 'city', type: 'string', example: 'Paris'),
+                new OA\Property(property: 'weather', type: 'string', example: 'Ensoleillé')
+            ]
+        )
+    )]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
+    #[OA\Response(response: 404, description: 'Ville non trouvée')]
+    #[OA\Tag(name: 'Weather')]
+
     public function getWeatherByTown(string $ville, HttpClientInterface $httpClient): JsonResponse
     {
         return $this->fetchWeatherData($ville, $httpClient);
@@ -32,8 +60,26 @@ class ApiWeatherController extends AbstractController
 
     /**
      * Permet de retourner la météo de la ville de l'utilisateur authentifié.
+     * 
+     * @param HttpClientInterface $httpClient 
+     * @return JsonResponse 
      */
     #[Route('/api/meteo', name: 'app_getWeatherByUserTown', methods: ['GET'])]
+    #[OA\Response(
+        response: 200,
+        description: 'Retourne les données météo de la ville de l\'utilisateur',
+        content: new OA\JsonContent(
+            type: 'object',
+            properties: [
+                new OA\Property(property: 'city', type: 'string', example: 'Lyon'),
+                new OA\Property(property: 'weather', type: 'string', example: 'Nuageux')
+            ]
+        )
+    )]
+    #[OA\Response(response: 401, description: 'Le token JWT est manquant. Vous devez vous authentifier.')]
+    #[OA\Response(response: 404, description: 'Ville non trouvée')]
+    #[OA\Tag(name: 'Weather')]
+
     public function getWeatherByUserTown(HttpClientInterface $httpClient): JsonResponse
     {
         $user = $this->getUser();
@@ -48,6 +94,10 @@ class ApiWeatherController extends AbstractController
 
     /**
      * Permet de récupérer les données météo d'une ville donnée.
+     * 
+     * @param string $town Le nom de la ville pour laquelle récupérer les données météo.
+     * @param HttpClientInterface $httpClient 
+     * @return JsonResponse 
      */
     private function fetchWeatherData(string $town, HttpClientInterface $httpClient): JsonResponse
     {
