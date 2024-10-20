@@ -65,7 +65,7 @@ class AdviceController extends AbstractController
         )
     )]
     #[OA\Response(response: 401, description: 'Le token JWT est manquant.')]
-    #[OA\Response(response: 404, description: 'Mois non trouvé. Cela peut se produire dans les deux situations suivantes :
+    #[OA\Response(response: 404, description: 'Deux situations :
     1. L\'ID du mois spécifié n\'existe pas dans la base de données.
     2. Le mois existe, mais aucun conseil n\'est associé à ce mois.')]
     #[OA\Tag(name: 'Advices')]
@@ -219,6 +219,11 @@ class AdviceController extends AbstractController
         ValidatorInterface $validator
     ): JsonResponse {
 
+        // On vérifie que la requête ne soit pas vide.
+        if (empty($request->getContent())) {
+            throw new BadRequestHttpException('Aucune donnée à enregistrer.');
+        }
+
         // On récupère le contenu de la requête.
         $jsonAdvice = $request->getContent();
 
@@ -284,7 +289,7 @@ class AdviceController extends AbstractController
             type: 'object',
             properties: [
                 new OA\Property(property: 'description', type: 'string', example: 'Nouveau conseil de jardinage'),
-                new OA\Property(property: 'month', type: 'array', items: new OA\Items(type: 'integer'), example: [3])
+                new OA\Property(property: 'months', type: 'array', items: new OA\Items(type: 'integer'), example: [3])
             ]
         )
     )]
