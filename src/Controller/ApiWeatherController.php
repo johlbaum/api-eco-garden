@@ -114,7 +114,7 @@ class ApiWeatherController extends AbstractController
             // On effectue la requête vers l'API OpenWeather
             $apiResponse = $httpClient->request(
                 'GET',
-                "https://api.openweathermap.org/data/2.5/weather?q={$town}&appid=" . $this->apiKey
+                "https://api.openweathermap.org/data/2.5/weather?q={$town}&appid=" . $this->apiKey . "&lang=fr"
             );
 
             if ($apiResponse->getStatusCode() !== 200) {
