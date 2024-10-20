@@ -63,7 +63,7 @@ class UserController extends AbstractController
         )
     )]
     #[OA\Response(response: 400, description: 'Erreur de validation.')]
-    #[OA\Response(response: 500, description: 'Un utilisateur est déja enregistré avec cette adresse email.)')]
+    #[OA\Response(response: 500, description: 'Un utilisateur est déja enregistré avec cette adresse email.')]
     #[OA\Tag(name: 'Users')]
 
     public function createUser(
@@ -166,7 +166,8 @@ class UserController extends AbstractController
         Request $request,
         SerializerInterface $serializer,
         EntityManagerInterface $entityManager,
-        ValidatorInterface $validator
+        ValidatorInterface $validator,
+        UserPasswordHasherInterface $userPasswordHasher
     ): JsonResponse {
 
         // On vérifie que la requête ne soit pas vide.
@@ -182,6 +183,12 @@ class UserController extends AbstractController
 
         // On désérialise les données de la requête dans l'objet existant en modifiant uniquement les propriétés envoyées.
         $updatedUser = $serializer->deserialize($request->getContent(), User::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentUser]);
+
+        // Si un nouveau mot de passe est fourni, on le hache.
+        if ($updatedUser->getPassword() !== null) {
+            $hashedPassword = $userPasswordHasher->hashPassword($updatedUser, $updatedUser->getPassword());
+            $updatedUser->setPassword($hashedPassword);
+        }
 
         // On vérifie les contraintes de validation.
         $errors = $validator->validate($updatedUser);
