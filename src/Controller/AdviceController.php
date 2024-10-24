@@ -142,7 +142,7 @@ class AdviceController extends AbstractController
         SerializerInterface $serializer
     ): JsonResponse {
 
-        // On obtient le mois en cours.
+        // On récupère le mois en cours en base de données.
         $currentMonth = (new \DateTime())->format('n');
         $month = $monthRepository->find($currentMonth);
 
@@ -230,7 +230,7 @@ class AdviceController extends AbstractController
         // On désérialise le contenu JSON en un objet Advice mais il n'inclut pas le ou les mois associés au conseil.
         $advice = $serializer->deserialize($jsonAdvice, Advice::class, 'json', ["groups" => "createAdvice"]);
 
-        // On récupère le ou les mois associés au conseil depuis la requête.
+        // On convertit le contenu de la requête en un tableau associatif et on récupérere les mois qui ont été envoyés dans la requête.
         $content = $request->toArray();
         $months = $content['months'] ?? [];
 
@@ -325,7 +325,7 @@ class AdviceController extends AbstractController
         // À ce stade, les mois associés ne seront pas modifiés, même s'ils sont présents dans la requête. 
         $updatedAdvice = $serializer->deserialize($request->getContent(), Advice::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentAdvice]);
 
-        // On récupère le contenu de la requête.
+        // On convertit le contenu de la requête en un tableau associatif.
         $content = $request->toArray();
 
         // Si la clé 'months' est présente dans la requête, on met à jour les mois associés.

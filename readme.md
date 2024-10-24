@@ -97,9 +97,9 @@ DATABASE_URL="mysql://<utilisateur>:<mot_de_passe>@127.0.0.1:3306/eco_garden?cha
 OPENWEATHER_API_KEY="<votre_token_OpenWeather>"
 ```
 
-Remplacez <utilisateur> et <mot_de_passe> par vos informations d'accès MySQL, et <votre_token_openweather> par votre clé API OpenWeather.
+Remplacez "utilisateur" et "mot_de_passe" par vos informations d'accès MySQL, et "votre_token_openweather" par votre clé API OpenWeather.
 
-## 4.Génération des clés pour l'authentification
+## 4. Générer des clés pour l'authentification
 
 Créez un dossier config/jwt :
 
