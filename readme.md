@@ -54,15 +54,15 @@ Mot de passe : password
 
 - **Mois de l'année :**
 
-Les mois sont pre-enregistrés dans la base de donées dans la table "Month" :<br>
-
-id= 1 : month_number: 1 (janvier)
-id= 2 : month_number: 2 (février)
-id= 3 : month_number: 3 (mars) etc.
+Les mois sont pré-enregistrés dans la base de données dans la table `Month` :
+- `id = 1` : `month_number = 1` (janvier)
+- `id = 2` : `month_number = 2` (février)
+- `id = 3` : `month_number = 3` (mars)
+- etc.
 
 - **Conseils :**
 
-8 conseils associés à des mois de de l'année.
+8 conseils associés aux mois de l'année sont pré-enregistrés.
 
 ## Prérequis
 
@@ -71,6 +71,8 @@ id= 3 : month_number: 3 (mars) etc.
 - MySQL
 - Composer 
 - Symfony CLI
+
+## Instructions d'installation
 
 ## 1. Cloner le projet
 
@@ -88,14 +90,14 @@ composer install
 
 ## 3. Configurer l’environnement
 
-Créez un fichier `.env.local` à la racine du projet.
+Créez un fichier `.env.local` à la racine du projet avec les configurations suivantes :
 
 ```bash
 DATABASE_URL="mysql://<utilisateur>:<mot_de_passe>@127.0.0.1:3306/eco_garden?charset=utf8"
 OPENWEATHER_API_KEY="<votre_token_OpenWeather>"
 ```
 
-Remplacez <utilisateur> et <mot_de_passe> par les informations de connexion de votre base de données.
+Remplacez <utilisateur> et <mot_de_passe> par vos informations d'accès MySQL, et <votre_token_openweather> par votre clé API OpenWeather.
 
 ## 4.Génération des clés pour l'authentification
 
@@ -103,13 +105,6 @@ Créez un dossier config/jwt :
 
 ```bash
 mkdir -p config/jwt
-```
-
-## 5. Créer la base de données
-
-Créez la base de données avec la commande suivante :
-```bash
-symfony console doctrine:database:create --if-not-exists
 ```
 
 Générez les clés publiques et privées nécessaires pour JWT :
@@ -128,6 +123,13 @@ Dans le fichier .env.local, ajoutez les lignes suivantes :
 JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
 JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem
 JWT_PASSPHRASE=<votre_mot_de_passe_jwt>
+```
+
+## 5. Créer la base de données
+
+Créez la base de données avec la commande suivante :
+```bash
+symfony console doctrine:database:create --if-not-exists
 ```
 
 ## 6. Créer la structure de la base de données
